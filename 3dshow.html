@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<meta charset=utf-8>
+<title>My first three.js app</title>
+<style>
+* { margin: 0; }
+canvas { width: 100%; height: 100%;}
+</style>
+</head>
+<body>
+</body>
+<script src="./js/three.js"></script>
+<script src="./js/proj4.js"></script>
+<script src="./js/shp.js"></script>
+<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.5.0/proj4.js"></script> -->
+<script>
+    // var geoobj = { "type": "Feature",
+    //     "geometry": {
+    //         "type": "Polygon",
+    //         "coordinates": [
+    //         [ [0.0, 30.0], [30.0, 30.0], [30.0, 0.0],
+    //         [0.0, 0.0], [0.0, 30.0] ]
+    //         ]
+    //     }
+    // };
+    //../test_data/LaneDivider.shp
+    
+    //new Shapefile("../yancheng/HADLaneDivider.shp", "./js/", function (data) {
+    // new Shapefile("../shape/roads.shp", "./js/", function (data) {
+    var srcList = ["./test_data/LaneDivider","./test_data/RoadSideFacility","./test_data/Symbol_PL",
+    "./test_data/ParkingSpaceMarking","./test_data/Tunnel",
+    "./test_data/Building","./test_data/Symbol_PG","./test_data/Inspection","./test_data/Bridge",
+    "./test_data/TollBooth","./test_data/Track","./test_data/TrafficSign"];
+    // var srcList = ["./yancheng/HADLaneDivider"];
+    //用于储存geojson对象集合
+    var geoObjList = [];
+    debugger;
+    for(var i=0;i<srcList.length;i++){
+        shp(srcList[i]).then(function(geojson){
+                //do something with your geojson
+                debugger;
+                geoObjList.push(geojson);
+                console.log(geojson);
+                // var center = getCenter(geoObjList);
+                // var center = {x:-5968977,y:15818576};
+                // var center = {x:1527859,y:1668018};
+                var center = {x:(min_point.x+max_point.x)/2, y:(min_point.y+max_point.y)/2}
+                center = realToscreen (center, min_point, max_point, window.innerWidth, window.innerHeight);
+                cameraX = center.x;
+                cameraY = center.y;
+                debugger;
+                sceneX = center.x;
+                sceneY = center.y;
+                if(times == 0){
+                    sceneInit();
+                    times +=1;
+                }
+                drawPoint(geojson);
+                drawLine(geojson);
+                drawPolygon(geojson);
+                renderInit();
+        });
+    }
+    // for(var i=0;i<geoObjList.length;i++){
+    //     var geojson = geoObjList[i];
+    //     if(times == 0){
+    //         sceneInit();
+    //         times += 1;
+    //     }
+    //     drawPoint(geojson);
+    //     drawLine(geojson);
+    //     drawPolygon(geojson);
+    //     renderInit();
+    // }
+    // shp(srcList[0]).then(function(geojson){
+    //             //do something with your geojson
+    //             debugger;
+    //             geoObjList.push(geojson);
+    //             console.log(geojson);
+    //             // var center = getCenter(geoObjList);
+    //             var center = {x:-5968977,y:15818576};
+    //             cameraX = center.x;
+    //             cameraY = center.y;
+    //             debugger;
+    //             sceneX = center.x;
+    //             sceneY = center.y;
+    //             sceneInit();
+    //             drawLine(geojson);
+    //             renderInit();
+    //     });
+    function render(geoObjList){
+        debugger;
+        var center = getCenter(geoObjList);
+        cameraX = center.x;
+        cameraY = center.y;
+        debugger;
+        sceneX = center.x;
+        sceneY = center.y;
+        //场景只初始化一次
+        if(geoObjList.length == 1){
+            sceneInit();
+        }
+        drawLine(geoObjList);
+        // drawPolygon(geoObjList);
+        // animate();
+        renderInit();
+    }
+    // for(var i=0;i<srcList.length;i++){
+    //     new Shapefile(srcList[i], "./js/", function (data) {
+    //         console.log('ok', data);
+    //         debugger;
+    //         // geoobj =  data["geojson"]["features"][0];
+    //         // var bbox = data.geojson.bbox;
+    //         // min_point = proj4(firstProjection,{x:bbox[0],y:bbox[1]});
+    //         // max_point = proj4(firstProjection,{x:bbox[2],y:bbox[3]});
+    //         // var center = {x:(min_point.x+max_point.x)/2, y:(min_point.y+max_point.y)/2}
+    //         // center = realToscreen (center, min_point, max_point, window.innerWidth, window.innerHeight)
+    //         geoObjList.push(data);
+    //         // var center = getCenter(geoObjList);
+    //         // cameraX = center.x;
+    //         // cameraY = center.y;
+    //         // debugger;
+    //         // sceneX = center.x;
+    //         // sceneY = center.y;
+    //         // sceneInit(geoObjList);
+    //         // // animate();
+    //         // renderInit()
+            
+    //     });
+    // }
+    
+
+
+    // render(geoObjList);
+    //用于记录真实坐标系下xy坐标最小的点,这两个值决定场景中物体能否在屏幕的范围，目前人为设定，后期可以升级为自动获取
+    var min_point = {x: 12633203.732165445, y: 2636735.709714537}, max_point = {x: 12634205.607582584, y: 2637461.5342590343};
+    var times = 0;
+    var mouseX, mouseY, isMove = false;
+    var iswireframe = false;
+    var scene , camera , renderer;
+    var fov = 75, //拍摄距离  视野角值越大，场景中的物体越小
+        near = 1,//相机离视体积最近的距离
+        far = 10000;//相机离视体积最远的距离;
+    // var cameraX = 50, cameraY = 20, cameraZ = 100;
+    // var cameraX = 12633505, cameraY = 2636979, cameraZ = 1000;
+    // var sceneX = 12633505, sceneY = 2636979, sceneZ = 0;
+    var cameraX = 0, cameraY = 0, cameraZ = 1000;
+    var sceneX = 0, sceneY = 0, sceneZ = 0;
+    document.body.style.cursor="move";
+    
+    //投影信息
+    //web墨卡托投影 ESPG:3857
+    var firstProjection = "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext  +no_defs";
+    // [-2690666.2977344505, 3662659.885459918]
+    //当加载新数据时更新边界框,并重新计算中心点
+
+    //画点
+    function drawPoint(data){
+        debugger;
+        var types = ["Point"];
+        var type = data.features[0].geometry.type;
+        if(types.indexOf(type) == -1) return;
+        var features = data.features;
+        var material = new THREE.LineBasicMaterial( { color: 0x0000ff } );
+
+        for(var i =0; i<features.length; i++) {
+            var coordinates = features[i]["geometry"]["coordinates"];
+            var geometry = new THREE.Geometry();
+
+            // var point = lonlatTomercator(coordinates[ii][0], coordinates[ii][1]);
+            debugger;
+            var point = proj4(firstProjection,{x:coordinates[0], y:coordinates[1]});
+            point = realToscreen(point, min_point, max_point, window.innerWidth, window.innerHeight);
+            debugger;
+            geometry.vertices.push(new THREE.Vector3( point.x, point.y, 0 ));
+            geometry.vertices.push(new THREE.Vector3( point.x, point.y, 50 ));
+            // if(ii == 3){
+            //     geometry2.vertices.push(new THREE.Vector3( coordinates[ii][0], coordinates[ii][1], 0 ));
+            //     geometry2.vertices.push(new THREE.Vector3( coordinates[ii][0], coordinates[ii][1], 10 ));
+            // }
+
+            var line = new THREE.Line( geometry, material );
+            scene.add( line );
+        }  
+    }
+    //画线
+    function drawLine(data) {
+        debugger;
+        var types = ["PolyLine","LineString"];
+        var type = data.features[0].geometry.type;
+        if(types.indexOf(type) == -1) return;
+        var features = data.features;
+        var material = new THREE.LineBasicMaterial( { color: 0x0000ff } );
+
+        for(var i =0; i<features.length; i++) {
+            var coordinates = features[i]["geometry"]["coordinates"];
+            var geometry = new THREE.Geometry();
+            for(var ii = 0; ii<coordinates.length; ii++){
+                // var point = lonlatTomercator(coordinates[ii][0], coordinates[ii][1]);
+                debugger;
+                var point = proj4(firstProjection,{x:coordinates[ii][0], y:coordinates[ii][1]});
+                point = realToscreen(point, min_point, max_point, window.innerWidth, window.innerHeight);
+                // var point2 = transWebMercator2Screen(point);
+                debugger;
+                geometry.vertices.push(new THREE.Vector3( point.x, point.y, 0 ));
+                // if(ii == 3){
+                //     geometry2.vertices.push(new THREE.Vector3( coordinates[ii][0], coordinates[ii][1], 0 ));
+                //     geometry2.vertices.push(new THREE.Vector3( coordinates[ii][0], coordinates[ii][1], 10 ));
+                // }
+            }
+            var line = new THREE.Line( geometry, material );
+            scene.add( line );
+        }  
+    }
+
+    //画面
+    function drawPolygon(data) {
+        debugger;
+        var types = ["Polygon"];
+        var type = data.features[0].geometry.type;
+        if(types.indexOf(type) == -1) return;
+        var features = data.features;
+        var material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
+    
+        for(var i =0; i<features.length; i++) {
+            var coordinates = features[i]["geometry"]["coordinates"];
+            var geometry = new THREE.Geometry();
+            for(var ii = 0; ii<coordinates[0].length; ii++){
+                // var point = lonlatTomercator(coordinates[ii][0], coordinates[ii][1]);
+                debugger;
+                var point = proj4(firstProjection,{x:coordinates[0][ii][0], y:coordinates[0][ii][1]});
+                point = realToscreen(point, min_point, max_point, window.innerWidth, window.innerHeight);
+                // var point2 = transWebMercator2Screen(point);
+                debugger;
+                geometry.vertices.push(new THREE.Vector3( point.x, point.y, 0 ));
+                // if(ii == 3){
+                //     geometry2.vertices.push(new THREE.Vector3( coordinates[ii][0], coordinates[ii][1], 0 ));
+                //     geometry2.vertices.push(new THREE.Vector3( coordinates[ii][0], coordinates[ii][1], 10 ));
+                // }
+            }
+            var line = new THREE.Line( geometry, material );
+            scene.add( line );
+        }
+        
+    }
+
+    function onDocumentKeyDown(event){
+        switch(event.keyCode){
+            case 37: //左
+                cameraX -= 1;
+                sceneX -=1;
+                break;
+            case 39: //右
+                cameraX += 1;
+                sceneX +=1;
+                break;
+            case 38: //上
+                //fx -= 0.1;
+                cameraZ -= 1;
+                sceneZ -= 1;
+                break;
+            case 40: //下
+                //fx += 0.1;
+                cameraZ += 1;
+                sceneZ += 1;
+                break;
+            default:
+                break;
+        }
+        renderInit();
+    }
+
+
+    function onDocumentMouseWheel(event) {
+       if (event.wheelDelta) {  //判断浏览器IE，谷歌滑轮事件
+            if (event.wheelDelta > 0) { //当滑轮向上滚动时
+                fov -= (near < fov ? 1 : 0);
+            }
+            if (event.wheelDelta < 0) { //当滑轮向下滚动时
+                fov += (fov < far ? 1 : 0);
+            }
+        } else if (event.detail) {  //Firefox滑轮事件
+            if (event.detail > 0) { //当滑轮向上滚动时
+                fov += 1;
+            }
+            if (event.detail < 0) { //当滑轮向下滚动时
+                fov -= 1;
+            }
+        }
+        //改变fov值，并更新场景的渲染
+        camera.fov = fov;
+        renderInit();
+    }
+
+
+    function onDocumentMouseDown(event) {
+        if (event.button != 0) return;
+        isMove = true;
+        mouseX = event.pageX;
+        mouseY = event.pageY;
+        event.preventDefault();
+        document.addEventListener('mousemove', onDocumentMouseMove, false);
+        document.addEventListener('mouseup', onDocumentMouseUp, false);
+    }
+
+
+    function onDocumentMouseMove(event) {
+        var movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+        var movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+        //console.log("x="+movementX+"   y="+movementY);
+        cameraX -= movementX * 0.01 ;
+        sceneX -= movementX * 0.01 ;
+        cameraZ -= movementY * 0.01 ;
+        sceneZ -= movementY * 0.01 ;
+
+        var x = event.pageX;
+        var y = event.pageY;
+        var _x = x - mouseX;
+        var _y = y - mouseY;
+
+        for(var i=0; i<scene.children.length; i++) {
+            scene.children[i].rotation.x += _y * 0.001 * Math.PI ;
+            scene.children[i].rotation.y += _x * 0.001 * Math.PI ;
+        }
+
+        renderInit();
+
+        mouseX = x;
+        mouseY = y;
+    }
+
+    function onDocumentMouseUp(event) {
+        
+        document.removeEventListener('mousemove', onDocumentMouseMove);
+        document.removeEventListener('mouseup', onDocumentMouseUp);
+        isMove = false;
+        renderInit();
+    }
+
+
+    //场景初始化
+    function sceneInit(){
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera( fov , window.innerWidth/window.innerHeight, near, far );
+        camera.position.set(cameraX, cameraY, cameraZ);
+        //相机位置
+        //cameraX = 0; cameraZ = 8;
+        camera.up.x = 0;
+        camera.up.y = 1; //相机朝向--相机上方为y轴
+        camera.up.z = 0;
+
+        renderer = new THREE.WebGLRenderer({antialias : true});
+        renderer.setSize( window.innerWidth - 10, window.innerHeight -10 );
+        // renderer.setClearColor(0xFFFFFF, 1.0);
+        document.body.appendChild( renderer.domElement );
+        // renderer.setClearColor(0xFFFFFF, 1.0);
+
+
+        document.addEventListener('keydown',onDocumentKeyDown,false);
+        document.addEventListener('mousewheel', onDocumentMouseWheel, false);//兼容ie chrome
+        document.addEventListener('DOMMouseScroll', onDocumentMouseWheel, false);//兼容火狐
+        document.addEventListener('mousedown', onDocumentMouseDown, false);
+        document.addEventListener('mouseup', onDocumentMouseUp, false);
+       
+    }
+
+    //渲染初始化
+    function renderInit(){
+        camera.position.set(cameraX, cameraY, cameraZ);
+        camera.lookAt(sceneX, sceneY, sceneZ);
+        camera.updateProjectionMatrix();
+        renderer.render(scene, camera);
+    }
+
+    /*世界坐标转屏幕坐标,threejs的将屏幕中心作为原点，该函数将真实坐标转换为正好将所有真实点铺满屏幕的坐标,适用于右手坐标系*/ 
+    /*point={x:0,y:0},min_point为x和y坐标最小的点,width屏幕宽度, height屏幕高度*/ 
+    function realToscreen(point, min_point, max_point, width, height) {
+        debugger;
+        var screen_point = {x:0,y:0};
+        //有时候坐标转换后min_point的坐标值比max_point的大，防止传入的min_point坐标比max_point大
+        if(min_point.x>max_point.x && min_point.y>max_point.y) {
+            var temp_point=min_point;
+            min_point = max_point;
+            max_point = temp_point;
+        }
+        screen_point.x = (((point.x - min_point.x)/(max_point.x - min_point.x)))*width;
+        screen_point.y = (((point.y - min_point.y)/(max_point.y - min_point.y)))*height;
+        return screen_point;
+    }
+
+    //循环渲染，动画需调用的函数
+    function animate() {
+        requestAnimationFrame( animate );
+        //  stats.begin();
+        renderInit();
+        //stats.end();
+    }
+</script>
+</html>
